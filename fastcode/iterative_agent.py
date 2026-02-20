@@ -2498,21 +2498,21 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
             )
 
             # DEBUG: Log the raw response structure for vLLM debugging
-            if is_verbose_logging():
-                print("\n" + "="*70)
-                print("🔍 RAW LLM RESPONSE DEBUG")
-                print("="*70)
-                print(f"Response type: {type(response)}")
-                print(f"Response dict: {response.model_dump() if hasattr(response, 'model_dump') else response}")
-                print(f"Choices: {response.choices}")
-                if response.choices:
-                    choice = response.choices[0]
-                    print(f"First choice: {choice}")
-                    print(f"Message: {choice.message}")
-                    print(f"Message content type: {type(choice.message.content)}")
-                    print(f"Message content repr: {repr(choice.message.content)}")
-                    print(f"Message dict: {choice.message.model_dump() if hasattr(choice.message, 'model_dump') else choice.message}")
-                print("="*70 + "\n")
+            # if is_verbose_logging():
+            #     print("\n" + "="*70)
+            #     print("🔍 RAW LLM RESPONSE DEBUG")
+            #     print("="*70)
+            #     print(f"Response type: {type(response)}")
+            #     print(f"Response dict: {response.model_dump() if hasattr(response, 'model_dump') else response}")
+            #     print(f"Choices: {response.choices}")
+            #     if response.choices:
+            #         choice = response.choices[0]
+            #         print(f"First choice: {choice}")
+            #         print(f"Message: {choice.message}")
+            #         print(f"Message content type: {type(choice.message.content)}")
+            #         print(f"Message content repr: {repr(choice.message.content)}")
+            #         print(f"Message dict: {choice.message.model_dump() if hasattr(choice.message, 'model_dump') else choice.message}")
+            #     print("="*70 + "\n")
 
             if not response or not getattr(response, "choices", None):
                 raise ValueError(f"Empty response: {response}")
@@ -2528,6 +2528,12 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
                 content = choice.message.content
                 if content is not None:
                     self.logger.debug("Content extracted from choice.message.content (standard OpenAI format)")
+                
+                # If content is None/empty, try reasoning_content (for reasoning models like DeepSeek R1)
+                if not content:
+                    if hasattr(choice.message, 'reasoning_content') and choice.message.reasoning_content:
+                        content = choice.message.reasoning_content
+                        self.logger.info("Using reasoning_content as response (reasoning model detected)")
             
             # Method 2: Some vLLM implementations return content in choice.text
             if content is None and hasattr(choice, 'text'):
@@ -2592,7 +2598,31 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
                 raise ValueError(f"Empty response: {response}")
 
             stop_reason = getattr(response, 'stop_reason', 'unknown')
-            text = response.content[0].text if response.content else None
+            
+            # Try to get text from content blocks
+            text = None
+            
+            # Method 1: Standard text block
+            for block in response.content:
+                if hasattr(block, 'type') and block.type == 'text':
+                    text = block.text
+                    self.logger.debug("Content extracted from text block (standard Anthropic format)")
+                    break
+            
+            # Method 2: If no text found, try thinking block (for extended thinking models)
+            if not text:
+                for block in response.content:
+                    if hasattr(block, 'type') and block.type == 'thinking':
+                        text = getattr(block, 'thinking', None)
+                        if text:
+                            self.logger.info("Using thinking block as response (extended thinking model detected)")
+                            break
+            
+            # Method 3: Fallback - get text from first block
+            if not text and response.content:
+                text = response.content[0].text if hasattr(response.content[0], 'text') else None
+                if text:
+                    self.logger.info("Content extracted from first content block (fallback)")
             
             # Get token usage if available
             prompt_tokens = None

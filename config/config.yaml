@@ -175,7 +175,7 @@ agent:
     min_confidence_gain: 5  # Minimum confidence gain required to continue (0-100)
     max_total_lines: 12000  # Maximum total lines of code to retrieve
     temperature_agent: 0.2  # Temperature for agent reasoning
-    max_tokens_agent: 8000  # Max tokens for agent responses
+    max_tokens_agent: 40000  # Max tokens for agent responses
     max_elements: 100  # Maximum elements to keep after relevance filtering
     max_candidates_display: 200  # Maximum candidates to display in formatting
 

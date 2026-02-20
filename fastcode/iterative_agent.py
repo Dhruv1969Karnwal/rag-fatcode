@@ -2497,11 +2497,60 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
                 max_tokens=self.max_tokens,
             )
 
+            # DEBUG: Log the raw response structure for vLLM debugging
+            if is_verbose_logging():
+                print("\n" + "="*70)
+                print("🔍 RAW LLM RESPONSE DEBUG")
+                print("="*70)
+                print(f"Response type: {type(response)}")
+                print(f"Response dict: {response.model_dump() if hasattr(response, 'model_dump') else response}")
+                print(f"Choices: {response.choices}")
+                if response.choices:
+                    choice = response.choices[0]
+                    print(f"First choice: {choice}")
+                    print(f"Message: {choice.message}")
+                    print(f"Message content type: {type(choice.message.content)}")
+                    print(f"Message content repr: {repr(choice.message.content)}")
+                    print(f"Message dict: {choice.message.model_dump() if hasattr(choice.message, 'model_dump') else choice.message}")
+                print("="*70 + "\n")
+
             if not response or not getattr(response, "choices", None):
                 raise ValueError(f"Empty response: {response}")
 
             finish_reason = getattr(response.choices[0], 'finish_reason', 'unknown')
-            content = response.choices[0].message.content
+            
+            # Try multiple ways to get content (vLLM compatibility)
+            content = None
+            choice = response.choices[0]
+            
+            # Method 1: Standard OpenAI format - message.content
+            if hasattr(choice, 'message') and choice.message:
+                content = choice.message.content
+                if content is not None:
+                    self.logger.debug("Content extracted from choice.message.content (standard OpenAI format)")
+            
+            # Method 2: Some vLLM implementations return content in choice.text
+            if content is None and hasattr(choice, 'text'):
+                content = choice.text
+                if content is not None:
+                    self.logger.info("Content extracted from choice.text (vLLM alternative format)")
+            
+            # Method 3: Streaming-style delta content
+            if content is None and hasattr(choice, 'delta') and choice.delta:
+                content = getattr(choice.delta, 'content', None)
+                if content is not None:
+                    self.logger.info("Content extracted from choice.delta.content (streaming format)")
+            
+            # Method 4: Check if message has other content fields
+            if content is None and hasattr(choice, 'message') and choice.message:
+                # Try to find any string attribute that might contain content
+                for attr in ['content', 'text', 'value', 'data']:
+                    if hasattr(choice.message, attr):
+                        candidate = getattr(choice.message, attr)
+                        if isinstance(candidate, str) and candidate:
+                            content = candidate
+                            self.logger.info(f"Content extracted from choice.message.{attr} (fallback)")
+                            break
             
             # Get token usage if available
             prompt_tokens = None
@@ -2516,6 +2565,11 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
 
             if content is None or content == "":
                 self.logger.error(f"Empty content: finish_reason={finish_reason}, prompt_len={len(prompt)}")
+                # Log detailed debug info for empty content
+                self.logger.error(f"Response structure: {response.model_dump() if hasattr(response, 'model_dump') else 'N/A'}")
+                self.logger.error(f"Choice attributes: {dir(choice)}")
+                if hasattr(choice, 'message') and choice.message:
+                    self.logger.error(f"Message attributes: {dir(choice.message)}")
                 # Log the empty response for debugging
                 log_llm_response(f"[EMPTY RESPONSE] finish_reason={finish_reason}", prompt_tokens, completion_tokens, total_tokens)
                 raise ValueError("No content in response")

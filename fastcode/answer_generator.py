@@ -683,23 +683,35 @@ Symbol Mappings:
             yield "Error: OpenAI client not initialized"
             return
 
+        # Log the LLM request if verbose logging is enabled
+        messages = [{"role": "user", "content": prompt}]
+        log_llm_request(self.model, messages, self.base_url)
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 stream=True,
             )
 
+            full_content = []
             for chunk in response:
                 if chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
                     if hasattr(delta, 'content') and delta.content:
+                        full_content.append(delta.content)
                         yield delta.content
+
+            # Log the complete LLM response after streaming finishes
+            complete_response = "".join(full_content)
+            log_llm_response(complete_response if complete_response else "[EMPTY STREAM RESPONSE]", None, None, None)
 
         except Exception as e:
             self.logger.error(f"OpenAI streaming API error: {e}")
+            # Log the error as response
+            log_llm_response(f"[STREAM ERROR: {str(e)}]", None, None, None)
             yield f"\n\nError: {str(e)}"
 
     def _generate_anthropic(self, prompt: str) -> str:
@@ -750,18 +762,30 @@ Symbol Mappings:
             yield "Error: Anthropic client not initialized"
             return
 
+        # Log the LLM request if verbose logging is enabled
+        messages = [{"role": "user", "content": prompt}]
+        log_llm_request(self.model, messages, self.base_url)
+
         try:
             with self.client.messages.stream(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                messages=[{"role": "user", "content": prompt}]
+                messages=messages
             ) as stream:
+                full_content = []
                 for text in stream.text_stream:
+                    full_content.append(text)
                     yield text
+
+            # Log the complete LLM response after streaming finishes
+            complete_response = "".join(full_content)
+            log_llm_response(complete_response if complete_response else "[EMPTY STREAM RESPONSE]", None, None, None)
 
         except Exception as e:
             self.logger.error(f"Anthropic streaming API error: {e}")
+            # Log the error as response
+            log_llm_response(f"[STREAM ERROR: {str(e)}]", None, None, None)
             yield f"\n\nError: {str(e)}"
 
     def _parse_response_with_summary(self, raw_response: str) -> Tuple[str, Optional[str]]:

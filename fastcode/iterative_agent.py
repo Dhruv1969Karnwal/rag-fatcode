@@ -2516,6 +2516,8 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
 
             if content is None or content == "":
                 self.logger.error(f"Empty content: finish_reason={finish_reason}, prompt_len={len(prompt)}")
+                # Log the empty response for debugging
+                log_llm_response(f"[EMPTY RESPONSE] finish_reason={finish_reason}", prompt_tokens, completion_tokens, total_tokens)
                 raise ValueError("No content in response")
 
             # Log the LLM response if verbose logging is enabled
@@ -2550,6 +2552,8 @@ If continuing (confidence < {self.confidence_threshold} and budget available):
 
             if text is None or text == "":
                 self.logger.error(f"Empty content: stop_reason={stop_reason}, prompt_len={len(prompt)}")
+                # Log the empty response for debugging
+                log_llm_response(f"[EMPTY RESPONSE] stop_reason={stop_reason}", prompt_tokens, completion_tokens, total_tokens)
                 raise ValueError(f"No text in response: {response}")
 
             # Log the LLM response if verbose logging is enabled

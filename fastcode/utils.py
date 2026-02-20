@@ -133,8 +133,7 @@ def log_retrieval_results(query: str, elements: List[Dict[str, Any]],
 
 
 def log_llm_request(model: str, messages: List[Dict[str, str]], 
-                    base_url: Optional[str] = None,
-                    max_content_length: int = 5000000):
+                    base_url: Optional[str] = None):
     """
     Log LLM request in a formatted box.
     
@@ -142,7 +141,6 @@ def log_llm_request(model: str, messages: List[Dict[str, str]],
         model: Model name
         messages: List of messages (role, content)
         base_url: API endpoint URL
-        max_content_length: Maximum length for message content preview
     """
     if not _VERBOSE_LOGGING:
         return
@@ -160,19 +158,10 @@ def log_llm_request(model: str, messages: List[Dict[str, str]],
         
         content.append(f"[{role}]")
         
-        # Truncate long content
-        if len(msg_content) > max_content_length:
-            preview = msg_content[:max_content_length]
-            remaining = len(msg_content) - max_content_length
-            content.append(f"{preview}...")
-            content.append(f"  ... ({remaining} more characters)")
-        else:
-            # Show content with line breaks preserved but limited
-            lines = msg_content.split("\n")
-            for line in lines[:20]:  # Limit to 20 lines per message
-                content.append(line)
-            if len(lines) > 20:
-                content.append(f"  ... ({len(lines) - 20} more lines)")
+        # Show full content without truncation
+        lines = msg_content.split("\n")
+        for line in lines:
+            content.append(line)
         content.append("─" * 50)
     
     _print_box("LLM REQUEST", content, emoji="📤")
@@ -180,8 +169,7 @@ def log_llm_request(model: str, messages: List[Dict[str, str]],
 
 def log_llm_response(response: str, prompt_tokens: Optional[int] = None,
                      completion_tokens: Optional[int] = None,
-                     total_tokens: Optional[int] = None,
-                     max_content_length: int = 1000):
+                     total_tokens: Optional[int] = None):
     """
     Log LLM response in a formatted box.
     
@@ -190,7 +178,6 @@ def log_llm_response(response: str, prompt_tokens: Optional[int] = None,
         prompt_tokens: Number of prompt tokens used
         completion_tokens: Number of completion tokens
         total_tokens: Total tokens used
-        max_content_length: Maximum length for response preview
     """
     if not _VERBOSE_LOGGING:
         return
@@ -209,18 +196,10 @@ def log_llm_response(response: str, prompt_tokens: Optional[int] = None,
         content.append(f"Tokens Used: {', '.join(token_info)}")
         content.append("─" * 50)
     
-    # Response content
-    if len(response) > max_content_length:
-        preview = response[:max_content_length]
-        remaining = len(response) - max_content_length
-        lines = preview.split("\n")
-        for line in lines:
-            content.append(line)
-        content.append(f"... ({remaining} more characters)")
-    else:
-        lines = response.split("\n")
-        for line in lines:
-            content.append(line)
+    # Response content - show full content without truncation
+    lines = response.split("\n")
+    for line in lines:
+        content.append(line)
     
     _print_box("LLM RESPONSE", content, emoji="📥")
 

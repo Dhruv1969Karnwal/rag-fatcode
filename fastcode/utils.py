@@ -134,7 +134,7 @@ def log_retrieval_results(query: str, elements: List[Dict[str, Any]],
 
 def log_llm_request(model: str, messages: List[Dict[str, str]], 
                     base_url: Optional[str] = None,
-                    max_content_length: int = 500):
+                    max_content_length: int = 5000000):
     """
     Log LLM request in a formatted box.
     

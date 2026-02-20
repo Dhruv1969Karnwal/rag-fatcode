@@ -10,6 +10,7 @@ from pathlib import Path
 import fnmatch
 
 from .path_utils import PathUtils
+from .utils import is_verbose_logging
 
 
 class AgentTools:
@@ -98,6 +99,17 @@ class AgentTools:
                         item_info["size"] = 0
                 
                 result["contents"].append(item_info)
+            
+            # Verbose logging for list_directory results
+            if is_verbose_logging():
+                print("\n" + "="*70)
+                print(f"📁 LIST_DIRECTORY RESULTS: {path}")
+                print("="*70)
+                for item in result["contents"]:
+                    item_type = "DIR" if item.get("type") == "directory" else "FILE"
+                    size_info = f" ({item.get('size', 0)} bytes)" if item.get("type") == "file" else ""
+                    print(f"  [{item_type}] {item.get('name')}{size_info}")
+                print("="*70 + "\n")
             
             return result
             
@@ -334,6 +346,34 @@ class AgentTools:
                     debug_info["hint"] = "No files matched the file_pattern even after auto-retry with recursive pattern"
                 else:
                     debug_info["hint"] = "Files were searched but no content matches found. Check search_term."
+            
+            # Verbose logging for search_codebase results
+            if is_verbose_logging():
+                print("\n" + "="*70)
+                print(f"🔍 SEARCH_CODEBASE RESULTS: {len(results)} found")
+                print("="*70)
+                print(f"Search term: '{search_term}'")
+                print(f"File pattern: '{file_pattern}'")
+                print(f"Files searched: {files_searched}")
+                print("-"*70)
+                for i, result in enumerate(results[:10]):  # Show first 10
+                    file_path = result.get("file", "N/A")
+                    match_count = result.get("match_count", 0)
+                    match_type = result.get("match_type", "unknown")
+                    print(f"\n[{i+1}] File: {file_path}")
+                    print(f"    Match type: {match_type}")
+                    print(f"    Match count: {match_count}")
+                    # Show first few matches
+                    matches = result.get("matches", [])
+                    for j, match in enumerate(matches[:3]):
+                        line_num = match.get("line_number", "?")
+                        line_content = match.get("line_content", "")[:100]
+                        print(f"    Line {line_num}: {line_content}{'...' if len(match.get('line_content', '')) > 100 else ''}")
+                    if len(matches) > 3:
+                        print(f"    ... and {len(matches) - 3} more matches")
+                if len(results) > 10:
+                    print(f"\n... and {len(results) - 10} more files")
+                print("="*70 + "\n")
             
             return {
                 "success": True,

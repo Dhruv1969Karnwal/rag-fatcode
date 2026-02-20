@@ -349,6 +349,54 @@ class IterativeAgent:
         
         self.logger.info(f"Iterative retrieval completed: {iteration_metadata}")
         
+        # Verbose logging for final iteration results
+        if is_verbose_logging() and final_elements:
+            print("\n" + "="*70)
+            print(f"🎯 FINAL ITERATION RESULTS: {len(final_elements)} elements")
+            print("="*70)
+            print(f"Total rounds: {iteration_metadata.get('rounds', 0)}")
+            print(f"Final confidence: {iteration_metadata.get('final_confidence', 0)}%")
+            print(f"Query complexity: {iteration_metadata.get('query_complexity', 0)}")
+            print("-"*70)
+            
+            total_lines = 0
+            for i, elem_data in enumerate(final_elements[:20]):
+                elem = elem_data.get("element", {})
+                elem_type = elem.get("type", "unknown").upper()
+                name = elem.get("name", "unknown")
+                repo = elem.get("repo_name", "")
+                rel_path = elem.get("relative_path", elem.get("file_path", ""))
+                start_line = elem.get("start_line", 0)
+                end_line = elem.get("end_line", 0)
+                score = elem_data.get("total_score", 0)
+                
+                lines = end_line - start_line + 1 if end_line > start_line else 0
+                total_lines += lines
+                
+                location = f"{repo}/{rel_path}" if repo else rel_path
+                print(f"\n[{i+1}] [{elem_type}] {name}")
+                print(f"    File: {location}")
+                print(f"    Lines: {start_line}-{end_line} ({lines} lines)")
+                print(f"    Score: {score:.2f}")
+                
+                # Show code preview for first few
+                if i < 5:
+                    code = elem.get("code", "")
+                    if code:
+                        preview = code.split("\n")[0][:80]
+                        if len(code.split("\n")[0]) > 80:
+                            preview += "..."
+                        print(f"    Preview: {preview}")
+            
+            if len(final_elements) > 20:
+                print(f"\n... and {len(final_elements) - 20} more elements")
+            
+            print(f"\n📊 Summary:")
+            print(f"   Total elements: {len(final_elements)}")
+            print(f"   Total lines: {total_lines}")
+            print(f"   Budget used: {iteration_metadata.get('budget_used_pct', 0):.1f}%")
+            print("="*70 + "\n")
+        
         return final_elements, iteration_metadata
     
     def _generate_iteration_metadata(self, round1_result: Dict[str, Any], 
@@ -864,6 +912,38 @@ If confidence < 95:
         
         self.logger.info(f"Standard retrieval found {len(retrieval_results)} elements")
         
+        # Verbose logging for standard retrieval results
+        if is_verbose_logging() and retrieval_results:
+            print("\n" + "="*70)
+            print(f"🔍 STANDARD RETRIEVAL RESULTS: {len(retrieval_results)} elements")
+            print("="*70)
+            for i, elem_data in enumerate(retrieval_results[:10]):
+                elem = elem_data.get("element", {})
+                elem_type = elem.get("type", "unknown").upper()
+                name = elem.get("name", "unknown")
+                repo = elem.get("repo_name", "")
+                rel_path = elem.get("relative_path", elem.get("file_path", ""))
+                start_line = elem.get("start_line", 0)
+                end_line = elem.get("end_line", 0)
+                score = elem_data.get("total_score", 0)
+                
+                location = f"{repo}/{rel_path}:{start_line}" if repo else f"{rel_path}:{start_line}"
+                print(f"\n[{i+1}] [{elem_type}] {name}")
+                print(f"    Location: {location}")
+                print(f"    Lines: {start_line}-{end_line}")
+                print(f"    Score: {score:.2f}")
+                
+                # Show code preview
+                code = elem.get("code", "")
+                if code:
+                    preview = code.split("\n")[0][:100]
+                    if len(code.split("\n")[0]) > 100:
+                        preview += "..."
+                    print(f"    Preview: {preview}")
+            if len(retrieval_results) > 10:
+                print(f"\n... and {len(retrieval_results) - 10} more elements")
+            print("="*70 + "\n")
+        
         # Step 2: Execute tool calls if any
         tool_results = []
         if round1_result.get("tool_calls"):
@@ -872,6 +952,40 @@ If confidence < 95:
             )
             self.logger.info(f"Tool calls found {len(tool_results)} additional elements")
             self.logger.debug(f"Round 1 tool calls elements list: {self._format_element_list(tool_results)}")
+            
+            # Verbose logging for tool call results
+            if is_verbose_logging() and tool_results:
+                print("\n" + "="*70)
+                print(f"🔧 TOOL CALL RESULTS: {len(tool_results)} elements")
+                print("="*70)
+                for i, elem_data in enumerate(tool_results[:10]):
+                    elem = elem_data.get("element", {})
+                    elem_type = elem.get("type", "unknown").upper()
+                    name = elem.get("name", "unknown")
+                    repo = elem.get("repo_name", "")
+                    rel_path = elem.get("relative_path", elem.get("file_path", ""))
+                    start_line = elem.get("start_line", 0)
+                    end_line = elem.get("end_line", 0)
+                    score = elem_data.get("total_score", 0)
+                    agent_found = elem_data.get("agent_found", False)
+                    
+                    location = f"{repo}/{rel_path}:{start_line}" if repo else f"{rel_path}:{start_line}"
+                    print(f"\n[{i+1}] [{elem_type}] {name}")
+                    print(f"    Location: {location}")
+                    print(f"    Lines: {start_line}-{end_line}")
+                    print(f"    Score: {score:.2f}")
+                    print(f"    Agent Found: {agent_found}")
+                    
+                    # Show code preview
+                    code = elem.get("code", "")
+                    if code:
+                        preview = code.split("\n")[0][:100]
+                        if len(code.split("\n")[0]) > 100:
+                            preview += "..."
+                        print(f"    Preview: {preview}")
+                if len(tool_results) > 10:
+                    print(f"\n... and {len(tool_results) - 10} more elements")
+                print("="*70 + "\n")
 
         # Step 3: Merge and deduplicate
         all_results = retrieval_results + tool_results
@@ -882,10 +996,77 @@ If confidence < 95:
             expanded_results = self.retriever._expand_with_graph(all_results, max_hops=2)
             self.logger.info(f"Graph expansion resulted in {len(expanded_results)} elements")
             self.logger.debug(f"Round 1 graph expansion elements list: {self._format_element_list(expanded_results)}")
+            
+            # Verbose logging for graph expansion results
+            if is_verbose_logging() and expanded_results:
+                print("\n" + "="*70)
+                print(f"🔗 GRAPH EXPANSION RESULTS: {len(expanded_results)} elements")
+                print("="*70)
+                # Show only newly added elements (not in all_results)
+                existing_keys = set()
+                for elem_data in all_results:
+                    elem = elem_data.get("element", {})
+                    key = (elem.get("repo_name", ""), elem.get("relative_path", ""), elem.get("type", ""), elem.get("name", ""))
+                    existing_keys.add(key)
+                
+                new_elements = []
+                for elem_data in expanded_results:
+                    elem = elem_data.get("element", {})
+                    key = (elem.get("repo_name", ""), elem.get("relative_path", ""), elem.get("type", ""), elem.get("name", ""))
+                    if key not in existing_keys:
+                        new_elements.append(elem_data)
+                
+                print(f"New elements from graph: {len(new_elements)}")
+                for i, elem_data in enumerate(new_elements[:10]):
+                    elem = elem_data.get("element", {})
+                    elem_type = elem.get("type", "unknown").upper()
+                    name = elem.get("name", "unknown")
+                    repo = elem.get("repo_name", "")
+                    rel_path = elem.get("relative_path", elem.get("file_path", ""))
+                    start_line = elem.get("start_line", 0)
+                    related_to = elem_data.get("related_to", "")
+                    
+                    location = f"{repo}/{rel_path}:{start_line}" if repo else f"{rel_path}:{start_line}"
+                    print(f"\n[{i+1}] [{elem_type}] {name}")
+                    print(f"    Location: {location}")
+                    if related_to:
+                        print(f"    Related to: {related_to}")
+                if len(new_elements) > 10:
+                    print(f"\n... and {len(new_elements) - 10} more new elements")
+                print("="*70 + "\n")
             # Remove duplicates again after graph expansion (handle containment)
             expanded_results = self._remove_duplicates_with_containment(expanded_results)
             self.logger.info(f"After containment-aware deduplication: {len(expanded_results)} elements")
             self.logger.debug(f"Round 1 after dedup elements list: {self._format_element_list(expanded_results)}")
+            
+            # Verbose logging for final deduplicated results
+            if is_verbose_logging() and expanded_results:
+                print("\n" + "="*70)
+                print(f"✅ FINAL ROUND 1 RESULTS: {len(expanded_results)} elements after deduplication")
+                print("="*70)
+                total_lines = 0
+                for i, elem_data in enumerate(expanded_results[:15]):
+                    elem = elem_data.get("element", {})
+                    elem_type = elem.get("type", "unknown").upper()
+                    name = elem.get("name", "unknown")
+                    repo = elem.get("repo_name", "")
+                    rel_path = elem.get("relative_path", elem.get("file_path", ""))
+                    start_line = elem.get("start_line", 0)
+                    end_line = elem.get("end_line", 0)
+                    score = elem_data.get("total_score", 0)
+                    
+                    lines = end_line - start_line + 1 if end_line > start_line else 0
+                    total_lines += lines
+                    
+                    location = f"{repo}/{rel_path}" if repo else rel_path
+                    print(f"\n[{i+1}] [{elem_type}] {name}")
+                    print(f"    File: {location}")
+                    print(f"    Lines: {start_line}-{end_line} ({lines} lines)")
+                    print(f"    Score: {score:.2f}")
+                if len(expanded_results) > 15:
+                    print(f"\n... and {len(expanded_results) - 15} more elements")
+                print(f"\nTotal lines: {total_lines}")
+                print("="*70 + "\n")
             # Keep only the most relevant elements to avoid large graph expansions
             expanded_results = self._limit_elements_by_relevance(expanded_results, max_elements=self.max_elements)
             return expanded_results
